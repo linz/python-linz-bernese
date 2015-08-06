@@ -1,0 +1,255 @@
+#!/usr/bin/python
+"""
+Simple plotting of Bernese residual file
+
+Code based on exmaple
+Eli Bendersky (eliben@gmail.com)
+License: this code is in the public domain
+Last modified: 19.01.2009
+"""
+import sys, os
+from PyQt4.QtCore import *
+from PyQt4.QtGui import *
+
+import matplotlib
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
+from matplotlib.figure import Figure
+
+from Bernese.Residuals import Residuals
+from Bernese import Util
+
+
+class AppForm(QMainWindow):
+
+    def __init__(self, parent=None):
+        QMainWindow.__init__(self, parent)
+        self._respath = Util.campaignfile('OUT')
+        self._residuals = None
+        self._autoscale=False
+        self.setWindowTitle('Bernese residuals plot')
+
+        self.create_menu()
+        self.create_main_frame()
+        self.create_status_bar()
+
+        self.redraw()
+
+    def open_file( self ):
+        filename=QFileDialog.getOpenFileName(self,'Open residual file',self._respath,"Bernese residual files (*.frs);;All files (*.*)")
+        if not filename:
+            return
+        filename = unicode(filename)
+        self._respath = os.path.dirname(filename)
+        self._residuals = None
+        self.redraw()
+        try:
+            self._residuals = Residuals(filename)
+        except:
+            QMessageBox.information(self,'Residual file error',str(sys.exc_info()[1]))
+        self._load()
+
+    def _load( self ):
+        self.lines.clear()
+        self.satellites.clear()
+        self.filelabel.setText('Select file')
+        if self._residuals:
+            res=self._residuals
+            for l in res.lines:
+                self.lines.addItem(l.code())
+            for s in res.satellites:
+                self.satellites.addItem(str(s))
+            self.satAll.setChecked(True)
+            self.lineAll.setChecked(True)
+            self.filelabel.setText(res.srcprogram + ' residuals: '
+                                   + res.filename + ': ' + res.obsdate )
+        self._autoscale=True
+        self.redraw()
+
+    def save_plot(self):
+        file_choices = "PNG file (*.png)"
+        
+        path = unicode(QFileDialog.getSaveFileName(self, 
+                        'Save file', '', 
+                        file_choices))
+        if path:
+            self.canvas.print_figure(path, dpi=self.dpi)
+            self.statusBar().showMessage('Saved to %s' % path, 2000)
+    
+    def on_about(self):
+        msg = """ Bernese residual plotter
+        
+         * Use the matplotlib navigation bar
+         * Add values to the text box and press Enter (or click "Draw")
+         * Show or hide the grid
+         * Drag the slider to modify the width of the bars
+         * Save the plot to a file using the File menu
+        """
+        QMessageBox.about(self, "About the demo", msg.strip())
+    
+    def redraw(self):
+        """ Redraws the figure
+        """
+
+        if self._autoscale:
+            self.axes.clear()
+        else:
+            while self.axes.lines:
+                self.axes.lines[0].remove()
+            # self.axes.lines = []
+        if self._residuals:
+            lines=[]
+            satellites=[]
+            if not self.satAll.isChecked():
+                satellites=[str(w.text()) for w in self.satellites.selectedItems()]
+            if not self.lineAll.isChecked():
+                lines=[str(l.text()) for l in self.lines.selectedItems()]
+            colourby = 'S' if self.colourby.checkedId() == 0 else 'L'
+            self._residuals.plot(plot=self.axes,
+                                 colourby=colourby,
+                                 satellites=satellites,
+                                 lines=lines,
+                                 legend=True,
+                                 title=True)
+
+        if self._autoscale:
+            self.axes.autoscale()
+            self._autoscale=False
+        self.canvas.draw()
+        self.axes.autoscale(False)
+    
+    def create_main_frame(self):
+        self.main_frame = QWidget()
+        
+        # Create the mpl Figure and FigCanvas objects. 
+        # 5x4 inches, 100 dots-per-inch
+        #
+        self.dpi = 100
+        self.fig = Figure((5.0, 4.0), dpi=self.dpi)
+        self.canvas = FigureCanvas(self.fig)
+        self.canvas.setParent(self.main_frame)
+        
+        # Since we have only one plot, we can use add_axes 
+        # instead of add_subplot, but then the subplot
+        # configuration tool in the navigation toolbar wouldn't
+        # work.
+        #
+        self.axes = self.fig.add_subplot(111)
+        
+        # Create the navigation toolbar, tied to the canvas
+        #
+        self.mpl_toolbar = NavigationToolbar(self.canvas, self.main_frame)
+        
+        # Other GUI controls
+        # 
+        self.filelabel = QLabel('Select file')
+        self.filebutton = QPushButton('&Browse')
+        self.filebutton.clicked.connect( self.open_file )
+
+        self.satAll = QCheckBox('All satellites',self)
+        self.satellites = QListWidget(self)
+        self.satellites.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.satellites.setEnabled(False)
+        self.satAll.clicked.connect( lambda : self.setListCheck( self.satAll, self.satellites ) )
+        self.satellites.itemSelectionChanged.connect( self.redraw )
+
+        self.lineAll = QCheckBox('All lines',self)
+        self.lines = QListWidget(self)
+        self.lines.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.lines.setEnabled(False)
+        self.lineAll.clicked.connect( lambda : self.setListCheck( self.lineAll, self.lines ) )
+        self.lines.itemSelectionChanged.connect( self.redraw )
+
+        self.colourby = QButtonGroup(self)
+        self.colourby.addButton(QRadioButton('satellites',self),0)
+        self.colourby.addButton(QRadioButton('lines',self),1)
+        self.colourby.button(0).setChecked(True)
+        self.colourby.buttonClicked.connect( lambda x: self.redraw())
+        
+        #
+        # Layout with box sizers
+        # 
+        hbox1 = QHBoxLayout()
+        hbox1.addWidget(self.filelabel,1)
+        hbox1.addWidget(self.filebutton)
+
+        hbox2 = QHBoxLayout()
+        hbox2.addWidget(self.lineAll,0,Qt.AlignTop)
+        hbox2.addWidget(self.lines,1,Qt.AlignTop)
+        hbox2.addWidget(self.satAll,0,Qt.AlignTop)
+        hbox2.addWidget(self.satellites,1,Qt.AlignTop)
+        hbox2.addWidget(self.colourby.button(0),0,Qt.AlignTop)
+        hbox2.addWidget(self.colourby.button(1),0,Qt.AlignTop)
+        
+        vbox = QVBoxLayout()
+        vbox.addWidget(self.canvas,1)
+        vbox.addWidget(self.mpl_toolbar)
+        vbox.addLayout(hbox1)
+        vbox.addLayout(hbox2)
+        
+        self.main_frame.setLayout(vbox)
+        self.setCentralWidget(self.main_frame)
+    
+    def setListCheck( self, checkbox, listwidget ):
+        listwidget.setEnabled( not checkbox.isChecked())
+        self.redraw()
+
+    def create_status_bar(self):
+        self.status_text = QLabel("")
+        self.statusBar().addWidget(self.status_text, 1)
+        
+    def create_menu(self):        
+        self.file_menu = self.menuBar().addMenu("&File")
+        
+        load_action = self.create_action("&Open residual file",
+            shortcut="Ctrl+O", slot=self.open_file,
+            tip="Open residual file")
+        save_action = self.create_action("&Save plot",
+            shortcut="Ctrl+S", slot=self.save_plot, 
+            tip="Save the plot")
+        quit_action = self.create_action("&Quit", slot=self.close, 
+            shortcut="Ctrl+Q", tip="Close the application")
+        
+        self.add_actions(self.file_menu, 
+            (load_action, save_action, None, quit_action))
+        
+        self.help_menu = self.menuBar().addMenu("&Help")
+        about_action = self.create_action("&About", 
+            shortcut='F1', slot=self.on_about, 
+            tip='About the demo')
+        
+        self.add_actions(self.help_menu, (about_action,))
+
+    def add_actions(self, target, actions):
+        for action in actions:
+            if action is None:
+                target.addSeparator()
+            else:
+                target.addAction(action)
+
+    def create_action(  self, text, slot=None, shortcut=None, 
+                        icon=None, tip=None, checkable=False, 
+                        signal="triggered()"):
+        action = QAction(text, self)
+        if icon is not None:
+            action.setIcon(QIcon(":/%s.png" % icon))
+        if shortcut is not None:
+            action.setShortcut(shortcut)
+        if tip is not None:
+            action.setToolTip(tip)
+            action.setStatusTip(tip)
+        if slot is not None:
+            self.connect(action, SIGNAL(signal), slot)
+        if checkable:
+            action.setCheckable(True)
+        return action
+
+def main():
+    app = QApplication(sys.argv)
+    form = AppForm()
+    form.show()
+    app.exec_()
+
+
+if __name__ == "__main__":
+    main()

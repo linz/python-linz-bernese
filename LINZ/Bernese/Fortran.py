@@ -102,7 +102,7 @@ class Format( object ):
         Iterator returning parsed data from a file
 
         filename - the name of the file to read
-        skipLine - the number of lines at the beginning of hte file to skip over
+        skipLine - the number of lines at the beginning of the file to skip over
         skipErrors - if True then records not matching the format are skipped
         skipBlanks - if True then blank records are skipped
         '''

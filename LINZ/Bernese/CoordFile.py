@@ -1,3 +1,10 @@
+#!/usr/bin/python
+# Imports to support python 3 compatibility
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
 import numpy as np
 import numpy.linalg as la
 import pandas as pd
@@ -8,7 +15,25 @@ from LINZ.Geodetic.Ellipsoid import GRS80
 from Fortran import Format
 from collections import namedtuple
 
-StationCoord=namedtuple('StationCoord','id code name datum crddate xyz vxyz flag')
+class StationCoord( object ):
+
+    def __init__(self, id, code, name, datum, crddate, xyz, vxyz, flag):
+        self.id=id
+        self.code=code
+        self.name=name
+        self.datum=datum
+        self.crdate=crdate,
+        self.xyz=xyz
+        self.vxyz=vxyz
+        self.flag
+
+    def epochXyz( self, date=None ):
+        if date is None or self.crddate is None or self.vxyz is None:
+            return self.xyz
+        ydiff=(date-self.crddate).days/365.242
+        xyz=self.xyz
+        vxyz=self.vxyz
+        return [xyz[0]+vxyz[0]*ydiff,xyz[1]+vxyz[1]*ydiff,xyz[2]+vxyz[2]*ydiff]
 
 def read( filename, velocityFilename=None, velocities=False, tryVelocities=False, skipError=False, useCode=False ):
     '''
@@ -72,7 +97,7 @@ def read( filename, velocityFilename=None, velocities=False, tryVelocities=False
         f.close()
     return coords
 
-def compare( codes=None, codesCoordFile=None, useCode=False, skipError=False, **files ):
+def compare( codes=None, codesCoordFile=None, useCode=False, velocities=False, skipError=False, **files ):
     '''
     Compare two or more bernese coordinate files, and return a pandas DataFrame of
     common codes. 
@@ -92,7 +117,7 @@ def compare( codes=None, codesCoordFile=None, useCode=False, skipError=False, **
         nfiles += 1
         crddata=files[f]
         if isinstance(crddata,basestring): 
-            crddata=read(crddata,useCode=useCode,skipError=skipError)
+            crddata=read(crddata,useCode=useCode,skipError=skipError,velocities=velocities)
         coords[f]=crddata
         fcodes=set(crddata)
         if usecodes is None:
@@ -132,6 +157,8 @@ def compare( codes=None, codesCoordFile=None, useCode=False, skipError=False, **
         codedata.extend((c.flag for c in cdata))
         for c in cdata:
             codedata.extend(c.xyz)
+            if velocities:
+                codedata.extend(c.vxyz or [np.Nan,np.Nan,np.Nan])
         if calcdiff:
             xyz0=np.array(cdata[0].xyz)
             xyz1=np.array(cdata[1].xyz)
@@ -140,14 +167,26 @@ def compare( codes=None, codesCoordFile=None, useCode=False, skipError=False, **
             codedata.extend(dxyz)
             codedata.extend(denu)
             codedata.append(la.norm(denu))
+            if velocities:
+                xyz0=np.array(cdata[0].vxyz or [np.NaN,np.NaN,np.NaN])
+                xyz1=np.array(cdata[1].vxyz or [np.NaN,np.NaN,np.NaN])
+                dxyz=xyz1-xyz0
+                denu=GRS80.enu_axes(lon,lat).dot(dxyz)
+                codedata.extend(dxyz)
+                codedata.extend(denu)
+                codedata.append(la.norm(denu))
         data.append(codedata)
 
     columns=['code','lon','lat','hgt']
     columns.extend((t+'_flg' for t in crdtypes))
     for  t in crdtypes:
         columns.extend((t+'_X',t+'_Y',t+'_Z'))
+        if velocities:
+            columns.extend((t+'_VX',t+'_VY',t+'_VZ'))
     if calcdiff:
         columns.extend(('diff_X','diff_Y','diff_Z','diff_E','diff_N','diff_U','offset'))
+        if velocities:
+            columns.extend(('diff_VX','diff_VY','diff_VZ','diff_VE','diff_VN','diff_VU','offsetV'))
     df=pd.DataFrame(data,columns=columns)
     df.set_index(df.code,inplace=True)
     return df
@@ -160,6 +199,7 @@ def compare_main():
     parser.add_argument('crd_file_2',help='Name of second CRD file (can enter as type=filename)')
     parser.add_argument('csv_file',nargs='?',help='Name of output CSV file of differences')
     parser.add_argument('-c','--use-code',action='store_true',help='Use station code rather than full name')
+    parser.add_argument('-v','--use-velocities',action='store_true',help='Compare velocities as well as ')
     args=parser.parse_args()
 
     cmpfiles={}
@@ -170,11 +210,11 @@ def compare_main():
         else:
             cmpfiles['crd'+str(i+1)]=f
 
-    cmpdata=compare(useCode=args.use_code,skipError=True,**cmpfiles)
+    cmpdata=compare(useCode=args.use_code,skipError=True,velocities=args.use_velocities,**cmpfiles)
     if args.csv_file is not None:
         cmpdata.to_csv(args.csv_file,index=False,float_format="%.6f")
     else:
-        print cmpdata.loc[:,('diff_X','diff_Y','diff_Z','diff_E','diff_N','diff_U')].describe()
+        print(cmpdata.loc[:,('diff_X','diff_Y','diff_Z','diff_E','diff_N','diff_U')].describe());
 
 if __name__=='__main__':
     compare_main()

@@ -1,9 +1,10 @@
 import sys
 import re
 import os
-import numpy as np
 from collections import namedtuple
-from Fortran import Format
+import numpy as np
+
+from .Fortran import Format
 
 Line=namedtuple('Line','num,code1,code2,st1,st2,nf,offset,period')
 Line.code = lambda self: self.code1+':'+self.code2 if self.code2 else self.code1

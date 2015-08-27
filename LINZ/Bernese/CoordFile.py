@@ -5,15 +5,17 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import numpy as np
-import numpy.linalg as la
+from collections import namedtuple
 import pandas as pd
 import datetime
 import re
-import Util
+import numpy as np
+import numpy.linalg as la
+
 from LINZ.Geodetic.Ellipsoid import GRS80
-from Fortran import Format
-from collections import namedtuple
+
+from . import Util
+from .Fortran import Format
 
 class StationCoord( object ):
 

@@ -1,6 +1,6 @@
-import Util
-from Fortran import Format
 from collections import namedtuple
+from . import Util
+from .Fortran import Format
 
 Station=namedtuple('Station','code name')
 

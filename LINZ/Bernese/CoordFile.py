@@ -24,10 +24,10 @@ class StationCoord( object ):
         self.code=code
         self.name=name
         self.datum=datum
-        self.crdate=crdate,
+        self.crddate=crddate
         self.xyz=xyz
         self.vxyz=vxyz
-        self.flag
+        self.flag=flag
 
     def epochXyz( self, date=None ):
         if date is None or self.crddate is None or self.vxyz is None:

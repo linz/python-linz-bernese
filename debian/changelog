@@ -1,3 +1,9 @@
+python-linz-bernese (1.0.2-1) trusty; urgency=medium
+
+  * Fixing date bug
+
+ -- Chris Crook <ccrook@linz.govt.nz>  Thu, 27 Aug 2015 14:07:46 +1200
+
 python-linz-bernese (1.0.1-1) trusty; urgency=medium
 
   * Updating to support velocity files with coordinates

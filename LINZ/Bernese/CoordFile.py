@@ -18,6 +18,9 @@ from . import Util
 from .Fortran import Format
 
 class StationCoord( object ):
+    '''
+    Class representing station coordinate information read from Bernese station file
+    '''
 
     def __init__(self, id, code, name, datum, crddate, xyz, vxyz, flag):
         self.id=id
@@ -30,8 +33,12 @@ class StationCoord( object ):
         self.flag=flag
 
     def epochXyz( self, date=None ):
+        '''
+        Function to calculate the coordinate at a specific date.
+        Returns a vector [X,Y,Z]
+        '''
         if date is None or self.crddate is None or self.vxyz is None:
-            return self.xyz
+            return list(self.xyz)
         ydiff=(date-self.crddate).days/365.242
         xyz=self.xyz
         vxyz=self.vxyz
